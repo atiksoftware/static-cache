@@ -1,14 +1,32 @@
 {
     "name": "atiksoftware/static-cache",
-    "type": "library",
+    "type": "library", 
+    "description": "Caches responses as static html files on disk for lightning fast page loads.",
+    "keywords": ["laravel", "cache","static","apache","nginx","html"],
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Atiksoftware Corporation",
+            "email": "atiksoftware@gmail.com"
+        },
+        {
+            "name": "Joseph Silber",
+            "email": "contact@josephsilber.com"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Atiksoftware\\StaticCache\\": "src/"
         }
     },
     "require": { 
-        "php": ">=8.0.0" 
+        "php": ">=5.5.9",
+        "illuminate/contracts": "5.0 - 5.8|^6.0|^7.0|^8.0|^9.0",
+        "illuminate/filesystem": "5.0 - 5.8|^6.0|^7.0|^8.0|^9.0",
+        "symfony/http-foundation": "2.6 - 4|^5.0|^6.0"
+    },
+    "suggest": {
+        "illuminate/console": "Allows clearing the cache via artisan"
     },
     "extra": {
         "laravel": {
