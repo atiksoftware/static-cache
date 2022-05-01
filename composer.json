@@ -1,0 +1,20 @@
+{
+    "name": "atiksoftware/static-cache",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Atiksoftware\\StaticCache\\": "src/"
+        }
+    },
+    "require": { 
+        "php": ">=8.0.0" 
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Atiksoftware\\StaticCache\\LaravelServiceProvider"
+            ]
+        }
+    }
+}
