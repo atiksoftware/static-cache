@@ -3,6 +3,7 @@
 namespace Atiksoftware\StaticCache;
 
 use Exception;
+use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Contracts\Container\Container;
 use Symfony\Component\HttpFoundation\Request;
@@ -151,9 +152,41 @@ class Cache
 
 		$this->files->put(
 			$this->join([$path, $file]),
-			$response->getContent(),
+			$this->minifyHtml($response->getContent()),
 			true
 		);
+	}
+
+	/**
+	 * Minify html can save half a file size.
+	 *
+	 * @param $html
+	 *
+	 * @return null|string|string[]
+	 */
+	private function minifyHtml($html)
+	{
+		$search = [
+			'/(\n|^)(\x20+|\t)/',
+			'/(\n|^)\/\/(.*?)(\n|$)/',
+			'/\n/',
+			'/\<\!--.*?-->/',
+			'/(\x20+|\t)/', // Delete multispace (Without \n)
+			'/\>\s+\</', // strip whitespaces between tags
+			'/(\"|\')\s+\>/', // strip whitespaces between quotation ("') and end tags
+			'/=\s+(\"|\')/', ]; // strip whitespaces between = "'
+
+		$replace = [
+			"\n",
+			"\n",
+			' ',
+			'',
+			' ',
+			'><',
+			'$1>',
+			'=$1', ];
+
+		return preg_replace($search, $replace, $html);
 	}
 
 	/**
@@ -167,21 +200,41 @@ class Cache
 	{
 		$deletedHtml = $this->files->delete($this->getCachePath($slug . '.html'));
 		$deletedJson = $this->files->delete($this->getCachePath($slug . '.json'));
+		$deletedXml = $this->files->delete($this->getCachePath($slug . '.xml'));
 
-		return $deletedHtml || $deletedJson;
+		return $deletedHtml || $deletedJson || $deletedXml;
 	}
 
 	/**
 	 * Clear the full cache directory, or a subdirectory.
 	 *
 	 * @param  null|string
-	 * @param null|mixed $path
+	 * @param null|mixed $pattern
 	 *
 	 * @return bool
 	 */
-	public function clear($path = null)
+	public function clear($pattern = null, Command $command = null)
 	{
-		return $this->files->deleteDirectory($this->getCachePath($path), true);
+		$files = [];
+		if (null === $pattern) {
+			$files[] = $this->getCachePath();
+		} else {
+			$files = glob($this->getCachePath() . '/' . $pattern);
+		}
+
+		foreach ($files as $file) {
+			if ($this->files->isDirectory($file)) {
+				if (null !== $command) {
+					$command->info('Clearing directory: ' . $file);
+				}
+				$this->files->deleteDirectory($file);
+			} else {
+				if (null !== $command) {
+					$command->info('Clearing file: ' . $file);
+				}
+				$this->files->delete($file);
+			}
+		}
 	}
 
 	/**
@@ -195,13 +248,28 @@ class Cache
 	protected function getDirectoryAndFileNames($request, $response)
 	{
 		$segments = explode('/', ltrim($request->getPathInfo(), '/'));
+		$segments = array_filter($segments);
 
 		$filename = $this->aliasFilename(array_pop($segments));
+		$filename = $this->aliasQueryString($filename, $request);
 		$extension = $this->guessFileExtension($response);
 
 		$file = "{$filename}.{$extension}";
 
 		return [$this->getCachePath(implode('/', $segments)), $file];
+	}
+
+	protected function aliasQueryString($filename, Request $request)
+	{
+		$current_url = $request->getRequestUri();
+		$query = parse_url($current_url, PHP_URL_QUERY);
+		if (null === $query) {
+			return $filename;
+		}
+		// clear lfi and other bad stuff
+		$query = preg_replace('/[^a-zA-Z0-9_\-\=\&]/', '', $query);
+
+		return $filename . '[' . $query . ']';
 	}
 
 	/**
@@ -213,7 +281,7 @@ class Cache
 	 */
 	protected function aliasFilename($filename)
 	{
-		return $filename ?: 'pc__index__pc';
+		return $filename ?: '__index';
 	}
 
 	/**
@@ -224,7 +292,7 @@ class Cache
 	protected function getDefaultCachePath()
 	{
 		if ($this->container && $this->container->bound('path.public')) {
-			return $this->container->make('path.public') . '/page-cache';
+			return $this->container->make('path.public') . '/static-cache';
 		}
 	}
 
